@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.22;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
+import {AgentToken} from "./AgentToken.sol";
 contract AgentMerchant {
 
     struct AgentInfo {
@@ -23,9 +23,9 @@ contract AgentMerchant {
 
 
     struct SellShareRequest {
-    address userWalletAddress;
-    uint256 tokenAmount;
-  }
+      address userWalletAddress;
+      uint256 tokenAmount;
+    }
 
     // agent wallet address => list of sell share requests
     mapping(address => SellShareRequest[]) public sellShareRequests;
@@ -38,5 +38,38 @@ contract AgentMerchant {
     constructor(address _usdcTokenAddress) {
         usdcToken = IERC20(_usdcTokenAddress);
     }
+
+    function createAgent(
+      address walletAddress, //agent wallet address
+      address stockTokenAddress //stock token address
+    ) external returns (bool) {
+      // check if agent wallet address already exists
+      if (agentInfos[walletAddress].walletAddress != address(0)) {
+        revert("Agent wallet address already exists");
+      }
+
+      // check if stock token address already has an agent
+      if (stockTokenToWalletAddress[stockTokenAddress] != address(0)) {
+        revert("Stock token address already has an agent");
+      }
+
+      // create agent token
+      AgentToken agentToken = new AgentToken(walletAddress);
+
+      //check if agent token mint authority is set to be the merchant contract
+      require(agentToken.owner() == address(this), "Agent token mint authority is not set to be the merchant contract");
+
+      //register agent info
+      agentInfos[walletAddress] = AgentInfo({
+        walletAddress: walletAddress,
+        stockTokenAddress: stockTokenAddress,
+        pricePerToken: 100, // 1.00 USDC per token
+        creatorAddress: msg.sender
+      });
+
+      return true;
+    }
+
     
+
 }
