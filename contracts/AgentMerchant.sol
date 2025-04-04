@@ -55,6 +55,10 @@ contract AgentMerchant {
             creatorAddress: msg.sender
         });
 
+        stockTokenToWalletAddressMapper[address(agentToken)] = walletAddress;
+        
+        creatorAddressToAgentWalletAddressesMapper[msg.sender].push(walletAddress);
+
         return true;
     }
 
