@@ -38,32 +38,26 @@ contract AgentMerchant {
     }
 
     function createAgent(
-        address walletAddress, //agent wallet address
-        address stockTokenAddress //stock token address
+        address walletAddress,
+        string memory name,
+        string memory symbol
     ) external returns (bool) {
         // check if agent wallet address already exists
         if (agentInfoMapper[walletAddress].walletAddress != address(0)) {
             revert("Agent wallet address already exists");
         }
 
-        // check if stock token address already has an agent
-        if (stockTokenToWalletAddressMapper[stockTokenAddress] != address(0)) {
-            revert("Stock token address already has an agent");
-        }
-
         // create agent token
-        AgentToken agentToken = new AgentToken(walletAddress);
-
-        //check if agent token mint authority is set to be the merchant contract
-        require(
-            agentToken.owner() == address(this),
-            "Agent token mint authority is not set to be the merchant contract"
+        AgentToken agentToken = new AgentToken(
+            walletAddress,
+            name,
+            symbol
         );
 
         //register agent info
         agentInfoMapper[walletAddress] = AgentInfo({
             walletAddress: walletAddress,
-            stockTokenAddress: stockTokenAddress,
+            stockTokenAddress: address(agentToken),
             pricePerToken: 100, // 1.00 USDC per token
             creatorAddress: msg.sender
         });
@@ -95,5 +89,45 @@ contract AgentMerchant {
         return true;
     }
 
+    function commitSellStock(
+        address stockTokenAddress,
+        uint256 tokenAmount
+    ) external returns (bool) {
+        //skip security check for now
 
+        // main logic
+
+        // transfer token : user -> contract
+        AgentToken stockToken = AgentToken(stockTokenAddress);
+        stockToken.burn(tokenAmount);
+
+        // update sell share requests
+        // find user sell share request
+        bool found = false;
+        for (
+            uint256 i = 0;
+            i < sellShareRequests[stockTokenAddress].length;
+            i++
+        ) {
+            if (
+                sellShareRequests[stockTokenAddress][i].userWalletAddress ==
+                msg.sender
+            ) {
+                sellShareRequests[stockTokenAddress][i]
+                    .tokenAmount += tokenAmount;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            sellShareRequests[stockTokenAddress].push(
+                SellShareRequest({
+                    userWalletAddress: msg.sender,
+                    tokenAmount: tokenAmount
+                })
+            );
+        }
+
+        return true;
+    }
 }
