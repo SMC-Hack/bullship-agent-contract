@@ -153,7 +153,7 @@ contract AgentMerchant {
             SellShareRequest memory sellShareRequest = sellShareRequests[stockTokenAddress][i];
             uint256 tokenAmount = sellShareRequest.tokenAmount;
             uint256 usdcAmount = (newPricePerToken * tokenAmount);
-            usdcToken.transfer(sellShareRequest.userWalletAddress, usdcAmount);
+            usdcToken.transferFrom(agentWalletAddress, sellShareRequest.userWalletAddress, usdcAmount);
         }
 
         delete sellShareRequests[stockTokenAddress];
@@ -203,5 +203,11 @@ contract AgentMerchant {
             agentUsdcBalance  / trueTotalSupply,
             totalSellRequestTokenAmount
         );
+    }
+
+    function getSellShareRequestsLength(
+        address stockTokenAddress
+    ) external view returns (uint256) {
+        return sellShareRequests[stockTokenAddress].length;
     }
 }
