@@ -153,7 +153,7 @@ contract AgentMerchant {
             SellShareRequest memory sellShareRequest = sellShareRequests[stockTokenAddress][i];
             uint256 tokenAmount = sellShareRequest.tokenAmount;
             uint256 usdcAmount = (newPricePerToken * tokenAmount);
-            usdcToken.transferFrom(agentWalletAddress, sellShareRequest.userWalletAddress, usdcAmount);
+            usdcToken.transfer(sellShareRequest.userWalletAddress, usdcAmount);
         }
 
         delete sellShareRequests[stockTokenAddress];
