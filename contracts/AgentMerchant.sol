@@ -71,7 +71,7 @@ contract AgentMerchant {
         return true;
     }
 
-    function purchaseShare(
+    function purchaseStock(
         address stockTokenAddress,
         uint256 tokenAmount
     ) external returns (bool) {
@@ -89,6 +89,11 @@ contract AgentMerchant {
         }
         usdcToken.transferFrom(msg.sender, agentWalletAddress, usdcAmount);
 
+        // mint agent tokens : agent wallet address -> user
+        AgentToken(agentInfo.stockTokenAddress).mint(msg.sender, tokenAmount);
+
         return true;
     }
+
+
 }
