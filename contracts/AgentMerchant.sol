@@ -7,7 +7,7 @@ contract AgentMerchant {
     struct AgentInfo {
         address walletAddress;
         address stockTokenAddress;
-        uint256 pricePerToken;
+        uint256 pricePerToken; //in usdc decimals units (1000000 = 1 usdc)
         address creatorAddress;
     }
 
@@ -30,17 +30,14 @@ contract AgentMerchant {
 
     IERC20 public usdcToken;
 
-    // Price scaling factor to handle decimal values (2 decimal places, min price = 0.01)
-    uint256 public constant PRICE_PRECISION = 100;
-
     constructor(address _usdcTokenAddress) {
         usdcToken = IERC20(_usdcTokenAddress);
     }
 
     function createAgent(
         address walletAddress,
-        string memory name,
-        string memory symbol
+        string calldata name,
+        string calldata symbol
     ) external returns (bool) {
         // check if agent wallet address already exists
         if (agentInfoMapper[walletAddress].walletAddress != address(0)) {
@@ -54,7 +51,7 @@ contract AgentMerchant {
         agentInfoMapper[walletAddress] = AgentInfo({
             walletAddress: walletAddress,
             stockTokenAddress: address(agentToken),
-            pricePerToken: 100, // 1.00 USDC per token
+            pricePerToken: 1 * 1e6,
             creatorAddress: msg.sender
         });
 
@@ -69,7 +66,7 @@ contract AgentMerchant {
             stockTokenToWalletAddressMapper[stockTokenAddress]
         ];
         uint256 pricePerToken = agentInfo.pricePerToken;
-        uint256 usdcAmount = (pricePerToken * tokenAmount) / PRICE_PRECISION;
+        uint256 usdcAmount = (pricePerToken * tokenAmount);
         address agentWalletAddress = agentInfo.walletAddress;
 
         // transfer usdc : user -> agent wallet address
@@ -127,6 +124,41 @@ contract AgentMerchant {
         return true;
     }
 
+    function fullfillSellStock() external returns (bool) {
+        //must have security check
+        address agentWalletAddress = msg.sender;
+        AgentInfo memory agentInfo = agentInfoMapper[agentWalletAddress];
+        address stockTokenAddress = agentInfo.stockTokenAddress;
+
+        //compute pay back info
+        (uint256 newPricePerToken, uint256 totalSellRequestTokenAmount) = computePayBackInfo(stockTokenAddress);
+
+        //compute total money to pay back
+        uint256 totalMoneyToPayBack = (newPricePerToken * totalSellRequestTokenAmount);
+
+         //total balance in bot
+        uint256 totalUsdcBalance = usdcToken.balanceOf(agentWalletAddress);
+
+        //check if agent wallet address has enough usdc to pay back
+        if (totalUsdcBalance < totalMoneyToPayBack) {
+            revert("Agent wallet address does not have enough usdc to pay back");
+        }
+
+        //iterate through sell share requests and transfer usdc
+        for (uint256 i = 0; i < sellShareRequests[stockTokenAddress].length; i++) {
+            SellShareRequest memory sellShareRequest = sellShareRequests[stockTokenAddress][i];
+            uint256 tokenAmount = sellShareRequest.tokenAmount;
+            uint256 usdcAmount = (newPricePerToken * tokenAmount);
+            usdcToken.transferFrom(agentWalletAddress, sellShareRequest.userWalletAddress, usdcAmount);
+        }
+
+        delete sellShareRequests[stockTokenAddress];
+
+        agentInfoMapper[agentWalletAddress].pricePerToken = newPricePerToken;
+
+        return true;
+    }
+
     function _getTotalSellRequestTokenAmount(
         address stockTokenAddress
     ) internal view returns (uint256) {
@@ -141,9 +173,9 @@ contract AgentMerchant {
         return totalSellRequestTokenAmount;
     }
 
-    function _computePricePerToken(
+    function computePayBackInfo(
         address stockTokenAddress
-    ) internal view returns (uint256) {
+    ) internal view returns (uint256, uint256) {
         uint256 totalSellRequestTokenAmount = _getTotalSellRequestTokenAmount( // this has been burned before in commitSellStock
             stockTokenAddress
         );
@@ -157,13 +189,15 @@ contract AgentMerchant {
         ];
 
         if (trueTotalSupply == 0) {
-            return agentInfo.pricePerToken;
+            return (agentInfo.pricePerToken, totalSellRequestTokenAmount);
         }
 
         address agentWalletAddress = agentInfo.walletAddress;
         uint256 agentUsdcBalance = usdcToken.balanceOf(agentWalletAddress);
 
-        return (agentUsdcBalance * PRICE_PRECISION) /
-            trueTotalSupply;
+        return (
+            agentUsdcBalance  / trueTotalSupply,
+            totalSellRequestTokenAmount
+        );
     }
 }
