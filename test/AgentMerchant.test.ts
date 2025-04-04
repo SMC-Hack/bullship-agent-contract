@@ -96,8 +96,9 @@ describe("AgentMerchant", function () {
     });
     
     it("should allow users to purchase agent tokens", async function () {
-      const purchaseAmount = ethers.utils.parseUnits("100", 18); // 100 tokens
-      const expectedUsdcAmount = purchaseAmount.mul(INITIAL_PRICE_PER_TOKEN).div(ethers.utils.parseUnits("1", 18));
+      const purchaseAmount = 100; // 100 tokens with 0 decimals
+      const expectedUsdcAmount = purchaseAmount * Number(ethers.utils.formatUnits(INITIAL_PRICE_PER_TOKEN, 6));
+      const expectedUsdcAmountBN = ethers.utils.parseUnits(expectedUsdcAmount.toString(), 6);
       
       // Get balances before purchase
       const userUsdcBefore = await usdcToken.balanceOf(user1.address);
@@ -115,8 +116,8 @@ describe("AgentMerchant", function () {
       const userUsdcAfter = await usdcToken.balanceOf(user1.address);
       const agentUsdcAfter = await usdcToken.balanceOf(agent.address);
       
-      expect(userUsdcBefore.sub(userUsdcAfter)).to.equal(expectedUsdcAmount);
-      expect(agentUsdcAfter.sub(agentUsdcBefore)).to.equal(expectedUsdcAmount);
+      expect(userUsdcBefore.sub(userUsdcAfter)).to.equal(expectedUsdcAmountBN);
+      expect(agentUsdcAfter.sub(agentUsdcBefore)).to.equal(expectedUsdcAmountBN);
     });
     
     it("should revert if user doesn't have enough USDC", async function () {
@@ -133,7 +134,7 @@ describe("AgentMerchant", function () {
   describe("commitSellStock", function () {
     let agentTokenAddress: string;
     let agentToken: Contract;
-    const purchaseAmount = ethers.utils.parseUnits("100", 18); // 100 tokens
+    const purchaseAmount = 100; // 100 tokens with 0 decimals
     
     beforeEach(async function () {
       // Create agent
@@ -151,7 +152,7 @@ describe("AgentMerchant", function () {
     });
     
     it("should burn tokens and create a sell request", async function () {
-      const sellAmount = ethers.utils.parseUnits("40", 18); // 40 tokens
+      const sellAmount = 40; // 40 tokens
       
       // Get token balance before selling
       const userTokenBalanceBefore = await agentToken.balanceOf(user1.address);
@@ -171,25 +172,25 @@ describe("AgentMerchant", function () {
     
     it("should update existing sell request if one already exists", async function () {
       // Sell first batch
-      const sellAmount1 = ethers.utils.parseUnits("30", 18);
+      const sellAmount1 = 30;
       await agentMerchant.connect(user1).commitSellStock(agentTokenAddress, sellAmount1);
       
       // Sell second batch
-      const sellAmount2 = ethers.utils.parseUnits("20", 18);
+      const sellAmount2 = 20;
       await agentMerchant.connect(user1).commitSellStock(agentTokenAddress, sellAmount2);
       
       // Check sell request was updated
       const sellRequests = await agentMerchant.sellShareRequests(agentTokenAddress, 0);
       expect(sellRequests.userWalletAddress).to.equal(user1.address);
-      expect(sellRequests.tokenAmount).to.equal(sellAmount1.add(sellAmount2));
+      expect(sellRequests.tokenAmount).to.equal(sellAmount1 + sellAmount2);
     });
   });
   
   describe("fullfillSellStock", function () {
     let agentTokenAddress: string;
     let agentToken: Contract;
-    const purchaseAmount = ethers.utils.parseUnits("100", 18); // 100 tokens
-    const sellAmount = ethers.utils.parseUnits("40", 18); // 40 tokens
+    const purchaseAmount = 100; // 100 tokens with 0 decimals
+    const sellAmount = 40; // 40 tokens
     
     beforeEach(async function () {
       // Create agent
@@ -216,7 +217,7 @@ describe("AgentMerchant", function () {
       
       // Calculate expected payout
       const agentInfo = await agentMerchant.agentInfoMapper(agent.address);
-      const expectedPayout = sellAmount.mul(agentInfo.pricePerToken).div(ethers.utils.parseUnits("1", 18));
+      const expectedPayout = ethers.BigNumber.from(sellAmount).mul(agentInfo.pricePerToken);
       
       // Fulfill sell requests
       await agentMerchant.connect(agent).fullfillSellStock();
