@@ -8,10 +8,10 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 contract AgentToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
     //set initial owner to be the merchant contract when deployed
-    constructor(address initialOwner)
-        ERC20("Agent Token", "AGENT")
+    constructor(address initialOwner, string memory name, string memory symbol)
+        ERC20(name, symbol)
         Ownable(initialOwner)
-        ERC20Permit("Agent Token")
+        ERC20Permit(name)
     {}
 
     function mint(address to, uint256 amount) public onlyOwner {
