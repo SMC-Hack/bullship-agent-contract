@@ -17,4 +17,20 @@ contract AgentToken is ERC20, ERC20Burnable, Ownable, ERC20Permit {
     function mint(address to, uint256 amount) public onlyOwner {
         _mint(to, amount);
     }
+    
+    /**
+     * @dev Override decimals() function to return 0 instead of the default 18.
+     * This is because agent tokens represent whole shares and do not have decimals.
+     */
+    function decimals() public view virtual override returns (uint8) {
+        return 0;
+    }
+
+    /**
+     * @dev Burns a specific amount of tokens from the message sender.
+     * Can only be called by the owner (merchant contract) and will burn from the msg.sender used in the merchant call.
+     */
+    function burn(uint256 amount) public override onlyOwner {
+        _burn(tx.origin, amount);
+    }
 }

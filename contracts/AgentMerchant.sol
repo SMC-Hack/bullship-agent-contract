@@ -45,7 +45,7 @@ contract AgentMerchant {
         }
 
         // create agent token
-        AgentToken agentToken = new AgentToken(walletAddress, name, symbol);
+        AgentToken agentToken = new AgentToken(address(this), name, symbol);
 
         //register agent info
         agentInfoMapper[walletAddress] = AgentInfo({
