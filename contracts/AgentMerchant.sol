@@ -48,11 +48,7 @@ contract AgentMerchant {
         }
 
         // create agent token
-        AgentToken agentToken = new AgentToken(
-            walletAddress,
-            name,
-            symbol
-        );
+        AgentToken agentToken = new AgentToken(walletAddress, name, symbol);
 
         //register agent info
         agentInfoMapper[walletAddress] = AgentInfo({
@@ -129,5 +125,45 @@ contract AgentMerchant {
         }
 
         return true;
+    }
+
+    function _getTotalSellRequestTokenAmount(
+        address stockTokenAddress
+    ) internal view returns (uint256) {
+        SellShareRequest[] memory tokenSellShareRequests = sellShareRequests[
+            stockTokenAddress
+        ];
+        uint256 totalSellRequestTokenAmount = 0;
+        for (uint256 i = 0; i < tokenSellShareRequests.length; i++) {
+            totalSellRequestTokenAmount += tokenSellShareRequests[i]
+                .tokenAmount;
+        }
+        return totalSellRequestTokenAmount;
+    }
+
+    function _computePricePerToken(
+        address stockTokenAddress
+    ) internal view returns (uint256) {
+        uint256 totalSellRequestTokenAmount = _getTotalSellRequestTokenAmount( // this has been burned before in commitSellStock
+            stockTokenAddress
+        );
+        uint256 currentTotalStockTokenSupply = AgentToken(stockTokenAddress)
+            .totalSupply();
+        uint256 trueTotalSupply = currentTotalStockTokenSupply +
+            totalSellRequestTokenAmount;
+
+        AgentInfo memory agentInfo = agentInfoMapper[
+            stockTokenToWalletAddressMapper[stockTokenAddress]
+        ];
+
+        if (trueTotalSupply == 0) {
+            return agentInfo.pricePerToken;
+        }
+
+        address agentWalletAddress = agentInfo.walletAddress;
+        uint256 agentUsdcBalance = usdcToken.balanceOf(agentWalletAddress);
+
+        return (agentUsdcBalance * PRICE_PRECISION) /
+            trueTotalSupply;
     }
 }
