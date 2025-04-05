@@ -252,4 +252,81 @@ describe("AgentMerchant", function () {
       expect(newPrice).to.not.equal(originalPrice);
     });
   });
+
+  describe("updateUsdcTokenAddress", function () {
+    it("should allow owner to update USDC token address", async function () {
+      // Deploy a new USDC token
+      const MockERC20Factory = (await ethers.getContractFactory("MockERC20")) as MockERC20__factory;
+      const newUsdcToken = await MockERC20Factory.deploy("New USD Coin", "NUSDC", USDC_DECIMALS);
+      await newUsdcToken.deployed();
+      
+      // Get original USDC token address
+      const originalUsdcAddress = await agentMerchant.usdcToken();
+      
+      // Update USDC token address
+      await agentMerchant.connect(creator).updateUsdcTokenAddress(newUsdcToken.address);
+      
+      // Check USDC token address was updated
+      const updatedUsdcAddress = await agentMerchant.usdcToken();
+      expect(updatedUsdcAddress).to.not.equal(originalUsdcAddress);
+      expect(updatedUsdcAddress).to.equal(newUsdcToken.address);
+    });
+    
+    it("should revert when non-owner tries to update USDC address", async function () {
+      // Deploy a new USDC token
+      const MockERC20Factory = (await ethers.getContractFactory("MockERC20")) as MockERC20__factory;
+      const newUsdcToken = await MockERC20Factory.deploy("New USD Coin", "NUSDC", USDC_DECIMALS);
+      await newUsdcToken.deployed();
+      
+      // Attempt to update USDC token address from non-owner account (user1)
+      await expect(
+        agentMerchant.connect(user1).updateUsdcTokenAddress(newUsdcToken.address)
+      ).to.be.revertedWith("Only owner can call this function");
+    });
+    
+    it("should revert when attempting to set to zero address", async function () {
+      // Attempt to update USDC token address to zero address
+      await expect(
+        agentMerchant.connect(creator).updateUsdcTokenAddress(ethers.constants.AddressZero)
+      ).to.be.revertedWith("Invalid token address");
+    });
+    
+    it("should affect token transfers after update", async function () {
+      // Deploy a new USDC token
+      const MockERC20Factory = (await ethers.getContractFactory("MockERC20")) as MockERC20__factory;
+      const newUsdcToken = await MockERC20Factory.deploy("New USD Coin", "NUSDC", USDC_DECIMALS);
+      await newUsdcToken.deployed();
+      
+      // Create agent with original USDC
+      await agentMerchant.connect(creator).createAgent(agent.address, AGENT_NAME, AGENT_SYMBOL);
+      const agentInfo = await agentMerchant.agentInfoMapper(agent.address);
+      const agentTokenAddress = agentInfo.stockTokenAddress;
+      
+      // Update to new USDC token
+      await agentMerchant.connect(creator).updateUsdcTokenAddress(newUsdcToken.address);
+      
+      // Mint new USDC to user1
+      await newUsdcToken.mint(user1.address, INITIAL_USDC_SUPPLY);
+      await newUsdcToken.connect(user1).approve(agentMerchant.address, ethers.constants.MaxUint256);
+      
+      // Try purchasing with new token - should succeed if token was updated properly
+      const purchaseAmount = 100;
+      await agentMerchant.connect(user1).purchaseStock(agentTokenAddress, purchaseAmount);
+      
+      // Check user received agent tokens
+      const agentTokenContract = await ethers.getContractAt("AgentToken", agentTokenAddress) as Contract;
+      const userTokenBalance = await agentTokenContract.balanceOf(user1.address);
+      expect(userTokenBalance).to.equal(purchaseAmount);
+      
+      // Check the right USDC token was used (new one)
+      const userNewUsdcBalance = await newUsdcToken.balanceOf(user1.address);
+      const expectedUsdcSpent = purchaseAmount * Number(ethers.utils.formatUnits(INITIAL_PRICE_PER_TOKEN, 6));
+      const expectedRemainingBalance = Number(ethers.utils.formatUnits(INITIAL_USDC_SUPPLY, 6)) - expectedUsdcSpent;
+      
+      expect(Number(ethers.utils.formatUnits(userNewUsdcBalance, 6))).to.be.closeTo(
+        expectedRemainingBalance,
+        0.0001 // Allow for small rounding errors
+      );
+    });
+  });
 }); 

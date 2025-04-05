@@ -201,4 +201,52 @@ describe("AgentMerchant Events", function () {
       expect(priceEventArgs?.newPricePerToken).to.equal(newPrice);
     });
   });
+
+  describe("Event: UsdcTokenAddressUpdated", function () {
+    it("should emit UsdcTokenAddressUpdated event with correct parameters", async function () {
+      // Deploy a new USDC token to update to
+      const MockERC20Factory = (await ethers.getContractFactory("MockERC20")) as MockERC20__factory;
+      const newUsdcToken = await MockERC20Factory.deploy("New USD Coin", "NUSDC", USDC_DECIMALS);
+      await newUsdcToken.deployed();
+      
+      // Get original USDC token address
+      const originalUsdcAddress = await agentMerchant.usdcToken();
+      
+      // Update USDC token address and capture transaction
+      const tx = await agentMerchant.connect(creator).updateUsdcTokenAddress(newUsdcToken.address);
+      const receipt = await tx.wait();
+      
+      // Find and verify the UsdcTokenAddressUpdated event
+      const event = receipt.events?.find(e => e.event === "UsdcTokenAddressUpdated");
+      expect(event).to.not.be.undefined;
+      
+      // Check event parameters
+      const eventArgs = event?.args;
+      expect(eventArgs?.oldAddress).to.equal(originalUsdcAddress);
+      expect(eventArgs?.newAddress).to.equal(newUsdcToken.address);
+      
+      // Verify the contract state was updated
+      const updatedUsdcAddress = await agentMerchant.usdcToken();
+      expect(updatedUsdcAddress).to.equal(newUsdcToken.address);
+    });
+    
+    it("should revert when non-owner tries to update USDC address", async function () {
+      // Deploy a new USDC token
+      const MockERC20Factory = (await ethers.getContractFactory("MockERC20")) as MockERC20__factory;
+      const newUsdcToken = await MockERC20Factory.deploy("New USD Coin", "NUSDC", USDC_DECIMALS);
+      await newUsdcToken.deployed();
+      
+      // Attempt to update USDC token address from non-owner account
+      await expect(
+        agentMerchant.connect(user1).updateUsdcTokenAddress(newUsdcToken.address)
+      ).to.be.revertedWith("Only owner can call this function");
+    });
+    
+    it("should revert when attempting to update to zero address", async function () {
+      // Attempt to update USDC token address to zero address
+      await expect(
+        agentMerchant.connect(creator).updateUsdcTokenAddress(ethers.constants.AddressZero)
+      ).to.be.revertedWith("Invalid token address");
+    });
+  });
 }); 
