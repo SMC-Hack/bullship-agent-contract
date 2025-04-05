@@ -44,9 +44,15 @@ contract AgentMerchant {
         _;
     }
 
-    constructor(address _usdcTokenAddress) {
+    address public cctpWrapperAddress;
+
+    constructor(
+        address _usdcTokenAddress,
+        address _cctpWrapperAddress
+    ) {
         usdcToken = IERC20(_usdcTokenAddress);
         owner = msg.sender;
+        cctpWrapperAddress = _cctpWrapperAddress;
     }
 
     /**
@@ -147,6 +153,26 @@ contract AgentMerchant {
 
         // Emit event
         emit StockPurchased(msg.sender, agentInfo.walletAddress, stockTokenAddress, tokenAmount, usdcAmount);
+
+        return true;
+    }
+    
+    function crossChainPurchaseStock(
+        address stockTokenAddress,
+        uint256 usdcAmount,
+        address userWalletAddress
+    ) external returns (bool) {
+        //skip security check for now
+        // main logic
+
+        require(
+            msg.sender == cctpWrapperAddress, 
+            "Only cctp wrapper can call this function"
+        );
+
+        // mint agent token to user
+        AgentToken stockToken = AgentToken(stockTokenAddress);
+        stockToken.mint(userWalletAddress, usdcAmount);
 
         return true;
     }
