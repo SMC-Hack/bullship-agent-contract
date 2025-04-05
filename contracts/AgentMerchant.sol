@@ -10,6 +10,7 @@ contract AgentMerchant {
     event SellStockRequested(address indexed seller, address stockTokenAddress, uint256 tokenAmount);
     event SellRequestFulfilled(address indexed agentWalletAddress, address stockTokenAddress, uint256 totalTokenAmount, uint256 newPricePerToken, uint256 totalUsdcPaid);
     event PricePerTokenUpdated(address indexed agentWalletAddress, uint256 oldPricePerToken, uint256 newPricePerToken);
+    event UsdcTokenAddressUpdated(address indexed oldAddress, address indexed newAddress);
 
     struct AgentInfo {
         address walletAddress;
@@ -36,9 +37,27 @@ contract AgentMerchant {
     mapping(address => SellShareRequest[]) public sellShareRequests;
 
     IERC20 public usdcToken;
+    address public owner;
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only owner can call this function");
+        _;
+    }
 
     constructor(address _usdcTokenAddress) {
         usdcToken = IERC20(_usdcTokenAddress);
+        owner = msg.sender;
+    }
+
+    /**
+     * @notice Allows the owner to update the USDC token address
+     * @param _usdcTokenAddress New USDC token address
+     */
+    function updateUsdcTokenAddress(address _usdcTokenAddress) external onlyOwner {
+        require(_usdcTokenAddress != address(0), "Invalid token address");
+        address oldAddress = address(usdcToken);
+        usdcToken = IERC20(_usdcTokenAddress);
+        emit UsdcTokenAddressUpdated(oldAddress, _usdcTokenAddress);
     }
 
     function createAgent(
