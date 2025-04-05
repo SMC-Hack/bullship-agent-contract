@@ -131,6 +131,91 @@ describe("AgentMerchant", function () {
     });
   });
 
+  describe("purchaseStockByUsdc", function () {
+    let agentTokenAddress: string;
+
+    beforeEach(async function () {
+      // Create agent first
+      await agentMerchant.connect(creator).createAgent(agent.address, AGENT_NAME, AGENT_SYMBOL);
+
+      // Get agent token address
+      const agentInfo = await agentMerchant.agentInfoMapper(agent.address);
+      agentTokenAddress = agentInfo.stockTokenAddress;
+    });
+
+    it("should allow users to purchase agent tokens by specifying USDC amount", async function () {
+      const usdcAmount = ethers.utils.parseUnits("100", USDC_DECIMALS); // 100 USDC
+      const pricePerToken = await (await agentMerchant.agentInfoMapper(agent.address)).pricePerToken;
+      const expectedTokenAmount = usdcAmount.div(pricePerToken);
+
+      // Get balances before purchase
+      const userUsdcBefore = await usdcToken.balanceOf(user1.address);
+      const agentUsdcBefore = await usdcToken.balanceOf(agent.address);
+
+      // Purchase tokens using USDC amount
+      await agentMerchant.connect(user1).purchaseStockByUsdc(agentTokenAddress, usdcAmount);
+
+      // Check user received correct amount of agent tokens
+      const agentTokenContract = await ethers.getContractAt("AgentToken", agentTokenAddress) as Contract;
+      const userTokenBalance = await agentTokenContract.balanceOf(user1.address);
+      expect(userTokenBalance).to.equal(expectedTokenAmount);
+
+      // Check USDC was transferred correctly
+      const userUsdcAfter = await usdcToken.balanceOf(user1.address);
+      const agentUsdcAfter = await usdcToken.balanceOf(agent.address);
+
+      expect(userUsdcBefore.sub(userUsdcAfter)).to.equal(usdcAmount);
+      expect(agentUsdcAfter.sub(agentUsdcBefore)).to.equal(usdcAmount);
+    });
+
+    it("should handle USDC amounts that don't divide evenly by token price", async function () {
+      // Set an unusual amount of USDC that won't divide evenly
+      const usdcAmount = ethers.utils.parseUnits("123.456789", USDC_DECIMALS);
+      const pricePerToken = await (await agentMerchant.agentInfoMapper(agent.address)).pricePerToken;
+      
+      // Calculate expected token amount (integer division in Solidity)
+      const expectedTokenAmount = usdcAmount.div(pricePerToken);
+
+      // Purchase tokens using USDC amount
+      await agentMerchant.connect(user1).purchaseStockByUsdc(agentTokenAddress, usdcAmount);
+
+      // Check user received correct amount of agent tokens
+      const agentTokenContract = await ethers.getContractAt("AgentToken", agentTokenAddress) as Contract;
+      const userTokenBalance = await agentTokenContract.balanceOf(user1.address);
+      
+      // Should match the integer division result
+      expect(userTokenBalance).to.equal(expectedTokenAmount);
+    });
+
+    it("should revert if user doesn't have enough USDC", async function () {
+      // Create a user with 0 USDC
+      const poorUser = (await ethers.getSigners())[5];
+      const usdcAmount = ethers.utils.parseUnits("100", USDC_DECIMALS);
+
+      // Try to purchase tokens - should revert
+      await expect(
+        agentMerchant.connect(poorUser).purchaseStockByUsdc(agentTokenAddress, usdcAmount)
+      ).to.be.revertedWith("User does not have enough usdc to purchase shares");
+    });
+
+    it("should emit StockPurchased event with correct parameters", async function () {
+      const usdcAmount = ethers.utils.parseUnits("50", USDC_DECIMALS);
+      const pricePerToken = await (await agentMerchant.agentInfoMapper(agent.address)).pricePerToken;
+      const expectedTokenAmount = usdcAmount.div(pricePerToken);
+
+      // Purchase tokens and check for event
+      await expect(agentMerchant.connect(user1).purchaseStockByUsdc(agentTokenAddress, usdcAmount))
+        .to.emit(agentMerchant, "StockPurchased")
+        .withArgs(
+          user1.address,
+          agent.address,
+          agentTokenAddress,
+          expectedTokenAmount,
+          usdcAmount
+        );
+    });
+  });
+
   describe("commitSellStock", function () {
     let agentTokenAddress: string;
     let agentToken: Contract;
