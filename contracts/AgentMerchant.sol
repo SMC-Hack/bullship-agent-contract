@@ -66,6 +66,11 @@ contract AgentMerchant {
         emit UsdcTokenAddressUpdated(oldAddress, _usdcTokenAddress);
     }
 
+    function updateCctpWrapperAddress(address _cctpWrapperAddress) external onlyOwner {
+        require(_cctpWrapperAddress != address(0), "Invalid cctp wrapper address");
+        cctpWrapperAddress = _cctpWrapperAddress;
+    }
+
     function createAgent(
         address walletAddress,
         string calldata name,
