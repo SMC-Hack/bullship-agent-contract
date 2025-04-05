@@ -4,6 +4,13 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AgentToken} from "./AgentToken.sol";
 
 contract AgentMerchant {
+    // Events
+    event AgentCreated(address indexed walletAddress, address indexed creatorAddress, address stockTokenAddress, string name, string symbol, uint256 initialPrice);
+    event StockPurchased(address indexed buyer, address indexed agentWalletAddress, address stockTokenAddress, uint256 tokenAmount, uint256 usdcAmount);
+    event SellStockRequested(address indexed seller, address stockTokenAddress, uint256 tokenAmount);
+    event SellRequestFulfilled(address indexed agentWalletAddress, address stockTokenAddress, uint256 totalTokenAmount, uint256 newPricePerToken, uint256 totalUsdcPaid);
+    event PricePerTokenUpdated(address indexed agentWalletAddress, uint256 oldPricePerToken, uint256 newPricePerToken);
+
     struct AgentInfo {
         address walletAddress;
         address stockTokenAddress;
@@ -47,17 +54,23 @@ contract AgentMerchant {
         // create agent token
         AgentToken agentToken = new AgentToken(address(this), name, symbol);
 
+        // Initial price of 1 USDC
+        uint256 initialPrice = 1 * 1e6;
+
         //register agent info
         agentInfoMapper[walletAddress] = AgentInfo({
             walletAddress: walletAddress,
             stockTokenAddress: address(agentToken),
-            pricePerToken: 1 * 1e6,
+            pricePerToken: initialPrice,
             creatorAddress: msg.sender
         });
 
         stockTokenToWalletAddressMapper[address(agentToken)] = walletAddress;
         
         creatorAddressToAgentWalletAddressesMapper[msg.sender].push(walletAddress);
+
+        // Emit event
+        emit AgentCreated(walletAddress, msg.sender, address(agentToken), name, symbol, initialPrice);
 
         return true;
     }
@@ -82,6 +95,9 @@ contract AgentMerchant {
 
         // mint agent tokens : agent wallet address -> user
         AgentToken(agentInfo.stockTokenAddress).mint(msg.sender, tokenAmount);
+
+        // Emit event
+        emit StockPurchased(msg.sender, agentWalletAddress, stockTokenAddress, tokenAmount, usdcAmount);
 
         return true;
     }
@@ -125,6 +141,9 @@ contract AgentMerchant {
             );
         }
 
+        // Emit event
+        emit SellStockRequested(msg.sender, stockTokenAddress, tokenAmount);
+
         return true;
     }
 
@@ -133,6 +152,7 @@ contract AgentMerchant {
         address agentWalletAddress = msg.sender;
         AgentInfo memory agentInfo = agentInfoMapper[agentWalletAddress];
         address stockTokenAddress = agentInfo.stockTokenAddress;
+        uint256 oldPricePerToken = agentInfo.pricePerToken;
 
         //compute pay back info
         (uint256 newPricePerToken, uint256 totalSellRequestTokenAmount) = computePayBackInfo(stockTokenAddress);
@@ -159,6 +179,10 @@ contract AgentMerchant {
         delete sellShareRequests[stockTokenAddress];
 
         agentInfoMapper[agentWalletAddress].pricePerToken = newPricePerToken;
+
+        // Emit events
+        emit SellRequestFulfilled(agentWalletAddress, stockTokenAddress, totalSellRequestTokenAmount, newPricePerToken, totalMoneyToPayBack);
+        emit PricePerTokenUpdated(agentWalletAddress, oldPricePerToken, newPricePerToken);
 
         return true;
     }
