@@ -94,6 +94,7 @@ contract AgentMerchant {
         return true;
     }
 
+
     function purchaseStock(
         address stockTokenAddress,
         uint256 tokenAmount
@@ -117,6 +118,35 @@ contract AgentMerchant {
 
         // Emit event
         emit StockPurchased(msg.sender, agentWalletAddress, stockTokenAddress, tokenAmount, usdcAmount);
+
+        return true;
+    }
+
+    function purchaseStockByUsdc(
+        address stockTokenAddress,
+        uint256 usdcAmount
+    ) external returns (bool) {
+
+        // transfer usdc : user -> agent wallet address
+        // check if user has enough usdc
+        if (usdcToken.balanceOf(msg.sender) < usdcAmount) {
+            revert("User does not have enough usdc to purchase shares");
+        }
+
+        AgentInfo memory agentInfo = agentInfoMapper[
+            stockTokenToWalletAddressMapper[stockTokenAddress]
+        ];
+
+        uint256 pricePerToken = agentInfo.pricePerToken;
+        uint256 tokenAmount = usdcAmount / pricePerToken;
+        
+        usdcToken.transferFrom(msg.sender, agentInfo.walletAddress, usdcAmount);
+
+        // mint agent tokens : agent wallet address -> user
+        AgentToken(agentInfo.stockTokenAddress).mint(msg.sender, tokenAmount);
+
+        // Emit event
+        emit StockPurchased(msg.sender, agentInfo.walletAddress, stockTokenAddress, tokenAmount, usdcAmount);
 
         return true;
     }
