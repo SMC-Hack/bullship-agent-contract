@@ -314,4 +314,11 @@ contract AgentMerchant {
     ) external view returns (uint256) {
         return sellShareRequests[stockTokenAddress].length;
     }
+
+    function getAgentInfo(
+        address walletAddress
+    ) external view returns (address, address, uint256, address) {
+        AgentInfo memory agentInfo = agentInfoMapper[walletAddress];
+        return (agentInfo.walletAddress, agentInfo.stockTokenAddress, agentInfo.pricePerToken, agentInfo.creatorAddress);
+    }
 }

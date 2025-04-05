@@ -42,7 +42,7 @@ describe("AgentMerchant Events", function () {
 
     // Deploy AgentMerchant contract
     const AgentMerchantFactory = (await ethers.getContractFactory("AgentMerchant")) as AgentMerchant__factory;
-    agentMerchant = await AgentMerchantFactory.deploy(usdcToken.address);
+    agentMerchant = await AgentMerchantFactory.deploy(usdcToken.address, creator.address);
     await agentMerchant.deployed();
 
     // Approve USDC for transfers

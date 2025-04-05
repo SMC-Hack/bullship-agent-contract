@@ -17,8 +17,6 @@
  */
 pragma solidity ^0.8.22;
 
-import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
-
 /**
  * @title MessageV2 Library
  * @notice Library for formatted v2 messages used by Relayer and Receiver.
@@ -45,9 +43,6 @@ import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
  * - finalityThresholdExecuted added
  **/
 library MessageV2 {
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
-
     // Indices of each field in message
     uint8 private constant VERSION_INDEX = 0;
     uint8 private constant SOURCE_DOMAIN_INDEX = 4;
@@ -59,6 +54,7 @@ library MessageV2 {
     uint8 private constant MIN_FINALITY_THRESHOLD_INDEX = 140;
     uint8 private constant FINALITY_THRESHOLD_EXECUTED_INDEX = 144;
     uint8 private constant MESSAGE_BODY_INDEX = 148;
+    uint8 private constant FIXED_FIELDS_LENGTH = 148; // Length without the messageBody field
 
     bytes32 private constant EMPTY_NONCE = bytes32(0);
     uint32 private constant EMPTY_FINALITY_THRESHOLD_EXECUTED = 0;
@@ -101,77 +97,163 @@ library MessageV2 {
     }
 
     // @notice Returns _message's version field
-    function _getVersion(bytes29 _message) internal pure returns (uint32) {
-        return uint32(_message.indexUint(VERSION_INDEX, 4));
+    function _getVersion(bytes memory _message) internal pure returns (uint32) {
+        uint32 result;
+        
+        assembly {
+            // Load 4 bytes and convert to uint32
+            let word := mload(add(_message, add(VERSION_INDEX, 32)))
+            result := shr(224, word) // Shift right by 224 bits (256 - 32)
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's sourceDomain field
-    function _getSourceDomain(bytes29 _message) internal pure returns (uint32) {
-        return uint32(_message.indexUint(SOURCE_DOMAIN_INDEX, 4));
+    function _getSourceDomain(bytes memory _message) internal pure returns (uint32) {
+        uint32 result;
+        
+        assembly {
+            // Load 4 bytes and convert to uint32
+            let word := mload(add(_message, add(SOURCE_DOMAIN_INDEX, 32)))
+            result := shr(224, word) // Shift right by 224 bits (256 - 32)
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's destinationDomain field
     function _getDestinationDomain(
-        bytes29 _message
+        bytes memory _message
     ) internal pure returns (uint32) {
-        return uint32(_message.indexUint(DESTINATION_DOMAIN_INDEX, 4));
+        uint32 result;
+        
+        assembly {
+            // Load 4 bytes and convert to uint32
+            let word := mload(add(_message, add(DESTINATION_DOMAIN_INDEX, 32)))
+            result := shr(224, word) // Shift right by 224 bits (256 - 32)
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's nonce field
-    function _getNonce(bytes29 _message) internal pure returns (bytes32) {
-        return _message.index(NONCE_INDEX, 32);
+    function _getNonce(bytes memory _message) internal pure returns (bytes32) {
+        bytes32 result;
+        
+        assembly {
+            // Load bytes32 from memory starting at NONCE_INDEX + 32
+            result := mload(add(_message, add(NONCE_INDEX, 32)))
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's sender field
-    function _getSender(bytes29 _message) internal pure returns (bytes32) {
-        return _message.index(SENDER_INDEX, 32);
+    function _getSender(bytes memory _message) internal pure returns (bytes32) {
+        bytes32 result;
+        
+        assembly {
+            // Load bytes32 from memory starting at SENDER_INDEX + 32
+            result := mload(add(_message, add(SENDER_INDEX, 32)))
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's recipient field
-    function _getRecipient(bytes29 _message) internal pure returns (bytes32) {
-        return _message.index(RECIPIENT_INDEX, 32);
+    function _getRecipient(bytes memory _message) internal pure returns (bytes32) {
+        bytes32 result;
+        
+        assembly {
+            // Load bytes32 from memory starting at RECIPIENT_INDEX + 32
+            result := mload(add(_message, add(RECIPIENT_INDEX, 32)))
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's destinationCaller field
     function _getDestinationCaller(
-        bytes29 _message
+        bytes memory _message
     ) internal pure returns (bytes32) {
-        return _message.index(DESTINATION_CALLER_INDEX, 32);
+        bytes32 result;
+        
+        assembly {
+            // Load bytes32 from memory starting at DESTINATION_CALLER_INDEX + 32
+            result := mload(add(_message, add(DESTINATION_CALLER_INDEX, 32)))
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's minFinalityThreshold field
     function _getMinFinalityThreshold(
-        bytes29 _message
+        bytes memory _message
     ) internal pure returns (uint32) {
-        return uint32(_message.indexUint(MIN_FINALITY_THRESHOLD_INDEX, 4));
+        uint32 result;
+        
+        assembly {
+            // Load 4 bytes and convert to uint32
+            let word := mload(add(_message, add(MIN_FINALITY_THRESHOLD_INDEX, 32)))
+            result := shr(224, word) // Shift right by 224 bits (256 - 32)
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's finalityThresholdExecuted field
     function _getFinalityThresholdExecuted(
-        bytes29 _message
+        bytes memory _message
     ) internal pure returns (uint32) {
-        return uint32(_message.indexUint(FINALITY_THRESHOLD_EXECUTED_INDEX, 4));
+        uint32 result;
+        
+        assembly {
+            // Load 4 bytes and convert to uint32
+            let word := mload(add(_message, add(FINALITY_THRESHOLD_EXECUTED_INDEX, 32)))
+            result := shr(224, word) // Shift right by 224 bits (256 - 32)
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's messageBody field
-    function _getMessageBody(bytes29 _message) internal pure returns (bytes29) {
-        return
-            _message.slice(
-                MESSAGE_BODY_INDEX,
-                _message.len() - MESSAGE_BODY_INDEX,
-                0
-            );
+    function _getMessageBody(bytes memory _message) internal pure returns (bytes memory) {
+        // Calculate the length of the message body (total length - fixed fields length)
+        uint256 bodyLength = _message.length - MESSAGE_BODY_INDEX;
+        bytes memory result = new bytes(bodyLength);
+        
+        if (bodyLength > 0) {
+            assembly {
+                // Copy bytes from _message to result
+                // Start position in _message: MESSAGE_BODY_INDEX + 32 (for bytes length prefix)
+                // Target position in result: 32 (for bytes length prefix)
+                // Length to copy: bodyLength
+                let sourcePos := add(add(_message, 32), MESSAGE_BODY_INDEX)
+                let targetPos := add(result, 32)
+                for { let i := 0 } lt(i, bodyLength) { i := add(i, 32) } {
+                    // Copy 32 bytes at a time, but be careful not to overflow
+                    let remaining := sub(bodyLength, i)
+                    // If less than 32 bytes remain, only copy that many
+                    let toCopy := 32
+                    if lt(remaining, 32) {
+                        toCopy := remaining
+                    }
+                    
+                    // Copy the bytes
+                    mstore(add(targetPos, i), mload(add(sourcePos, i)))
+                }
+            }
+        }
+        
+        return result;
     }
 
     /**
-     * @notice Reverts if message is malformed or too short
-     * @param _message The message as bytes29
+     * @notice Validates if message is properly formatted
+     * @param _message The message as bytes
      */
-    function _validateMessageFormat(bytes29 _message) internal pure {
-        require(_message.isValid(), "Malformed message");
-        require(
-            _message.len() >= MESSAGE_BODY_INDEX,
-            "Invalid message: too short"
-        );
+    function _validateMessageFormat(bytes memory _message) internal pure {
+        require(_message.length >= FIXED_FIELDS_LENGTH, "Invalid message: too short");
     }
 }

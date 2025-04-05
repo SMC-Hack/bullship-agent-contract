@@ -17,7 +17,6 @@
  */
 pragma solidity ^0.8.22;
 
-import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 import {BurnMessage} from "./BurnMessage.sol";
 
 /**
@@ -41,15 +40,14 @@ import {BurnMessage} from "./BurnMessage.sol";
  * - hookData
  **/
 library BurnMessageV2 {
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
-    using BurnMessage for bytes29;
+    using BurnMessage for bytes;
 
     // Field indices
     uint8 private constant MAX_FEE_INDEX = 132;
     uint8 private constant FEE_EXECUTED_INDEX = 164;
     uint8 private constant EXPIRATION_BLOCK_INDEX = 196;
     uint8 private constant HOOK_DATA_INDEX = 228;
+    uint8 private constant FIXED_FIELDS_LENGTH = 228; // Length without the hookData field
 
     uint256 private constant EMPTY_FEE_EXECUTED = 0;
     uint256 private constant EMPTY_EXPIRATION_BLOCK = 0;
@@ -89,70 +87,109 @@ library BurnMessageV2 {
     }
 
     // @notice Returns _message's version field
-    function _getVersion(bytes29 _message) internal pure returns (uint32) {
+    function _getVersion(bytes memory _message) internal pure returns (uint32) {
         return _message._getVersion();
     }
 
     // @notice Returns _message's burnToken field
-    function _getBurnToken(bytes29 _message) internal pure returns (bytes32) {
+    function _getBurnToken(bytes memory _message) internal pure returns (bytes32) {
         return _message._getBurnToken();
     }
 
     // @notice Returns _message's mintRecipient field
     function _getMintRecipient(
-        bytes29 _message
+        bytes memory _message
     ) internal pure returns (bytes32) {
         return _message._getMintRecipient();
     }
 
     // @notice Returns _message's amount field
-    function _getAmount(bytes29 _message) internal pure returns (uint256) {
+    function _getAmount(bytes memory _message) internal pure returns (uint256) {
         return _message._getAmount();
     }
 
     // @notice Returns _message's messageSender field
     function _getMessageSender(
-        bytes29 _message
+        bytes memory _message
     ) internal pure returns (bytes32) {
         return _message._getMessageSender();
     }
 
     // @notice Returns _message's maxFee field
-    function _getMaxFee(bytes29 _message) internal pure returns (uint256) {
-        return _message.indexUint(MAX_FEE_INDEX, 32);
+    function _getMaxFee(bytes memory _message) internal pure returns (uint256) {
+        uint256 result;
+        
+        assembly {
+            // Load uint256 from memory starting at MAX_FEE_INDEX + 32
+            result := mload(add(_message, add(MAX_FEE_INDEX, 32)))
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's feeExecuted field
-    function _getFeeExecuted(bytes29 _message) internal pure returns (uint256) {
-        return _message.indexUint(FEE_EXECUTED_INDEX, 32);
+    function _getFeeExecuted(bytes memory _message) internal pure returns (uint256) {
+        uint256 result;
+        
+        assembly {
+            // Load uint256 from memory starting at FEE_EXECUTED_INDEX + 32
+            result := mload(add(_message, add(FEE_EXECUTED_INDEX, 32)))
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's expirationBlock field
     function _getExpirationBlock(
-        bytes29 _message
+        bytes memory _message
     ) internal pure returns (uint256) {
-        return _message.indexUint(EXPIRATION_BLOCK_INDEX, 32);
+        uint256 result;
+        
+        assembly {
+            // Load uint256 from memory starting at EXPIRATION_BLOCK_INDEX + 32
+            result := mload(add(_message, add(EXPIRATION_BLOCK_INDEX, 32)))
+        }
+        
+        return result;
     }
 
     // @notice Returns _message's hookData field
-    function _getHookData(bytes29 _message) internal pure returns (bytes29) {
-        return
-            _message.slice(
-                HOOK_DATA_INDEX,
-                _message.len() - HOOK_DATA_INDEX,
-                0
-            );
+    function _getHookData(bytes memory _message) internal pure returns (bytes memory) {
+        // Calculate the length of the hook data (total length - fixed fields length)
+        uint256 hookDataLength = _message.length - HOOK_DATA_INDEX;
+        bytes memory result = new bytes(hookDataLength);
+        
+        if (hookDataLength > 0) {
+            assembly {
+                // Copy bytes from _message to result
+                // Start position in _message: HOOK_DATA_INDEX + 32 (for bytes length prefix)
+                // Target position in result: 32 (for bytes length prefix)
+                // Length to copy: hookDataLength
+                let sourcePos := add(add(_message, 32), HOOK_DATA_INDEX)
+                let targetPos := add(result, 32)
+                for { let i := 0 } lt(i, hookDataLength) { i := add(i, 32) } {
+                    // Copy 32 bytes at a time, but be careful not to overflow
+                    let remaining := sub(hookDataLength, i)
+                    // If less than 32 bytes remain, only copy that many
+                    let toCopy := 32
+                    if lt(remaining, 32) {
+                        toCopy := remaining
+                    }
+                    
+                    // Copy the bytes
+                    mstore(add(targetPos, i), mload(add(sourcePos, i)))
+                }
+            }
+        }
+        
+        return result;
     }
 
     /**
-     * @notice Reverts if burn message is malformed or invalid length
-     * @param _message The burn message as bytes29
+     * @notice Validates if burn message is properly formatted
+     * @param _message The burn message as bytes
      */
-    function _validateBurnMessageFormat(bytes29 _message) internal pure {
-        require(_message.isValid(), "Malformed message");
-        require(
-            _message.len() >= HOOK_DATA_INDEX,
-            "Invalid burn message: too short"
-        );
+    function _validateBurnMessageFormat(bytes memory _message) internal pure {
+        require(_message.length >= FIXED_FIELDS_LENGTH, "Invalid burn message: too short");
     }
 }

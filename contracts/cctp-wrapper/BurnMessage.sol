@@ -15,8 +15,6 @@
  */
 pragma solidity ^0.8.22;
 
-import "@summa-tx/memview-sol/contracts/TypedMemView.sol";
-
 /**
  * @title BurnMessage Library
  * @notice Library for formatted BurnMessages used by TokenMessenger.
@@ -29,9 +27,7 @@ import "@summa-tx/memview-sol/contracts/TypedMemView.sol";
  * messageSender         32         bytes32    100
  **/
 library BurnMessage {
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
-
+    // Field indices and lengths
     uint8 private constant VERSION_INDEX = 0;
     uint8 private constant VERSION_LEN = 4;
     uint8 private constant BURN_TOKEN_INDEX = 4;
@@ -72,16 +68,23 @@ library BurnMessage {
     }
 
     /**
-     * @notice Retrieves the burnToken from a DepositForBurn BurnMessage
+     * @notice Retrieves the messageSender from a DepositForBurn BurnMessage
      * @param _message The message
-     * @return sourceToken address as bytes32
+     * @return messageSender as bytes32
      */
-    function _getMessageSender(bytes29 _message)
+    function _getMessageSender(bytes memory _message)
         internal
         pure
         returns (bytes32)
     {
-        return _message.index(MSG_SENDER_INDEX, MSG_SENDER_LEN);
+        bytes32 result;
+        
+        assembly {
+            // Load bytes32 from memory starting at MSG_SENDER_INDEX + 32 (to account for the length prefix of bytes)
+            result := mload(add(_message, add(MSG_SENDER_INDEX, 32)))
+        }
+        
+        return result;
     }
 
     /**
@@ -89,8 +92,15 @@ library BurnMessage {
      * @param _message The message
      * @return sourceToken address as bytes32
      */
-    function _getBurnToken(bytes29 _message) internal pure returns (bytes32) {
-        return _message.index(BURN_TOKEN_INDEX, BURN_TOKEN_LEN);
+    function _getBurnToken(bytes memory _message) internal pure returns (bytes32) {
+        bytes32 result;
+        
+        assembly {
+            // Load bytes32 from memory starting at BURN_TOKEN_INDEX + 32
+            result := mload(add(_message, add(BURN_TOKEN_INDEX, 32)))
+        }
+        
+        return result;
     }
 
     /**
@@ -98,12 +108,19 @@ library BurnMessage {
      * @param _message The message
      * @return mintRecipient
      */
-    function _getMintRecipient(bytes29 _message)
+    function _getMintRecipient(bytes memory _message)
         internal
         pure
         returns (bytes32)
     {
-        return _message.index(MINT_RECIPIENT_INDEX, MINT_RECIPIENT_LEN);
+        bytes32 result;
+        
+        assembly {
+            // Load bytes32 from memory starting at MINT_RECIPIENT_INDEX + 32
+            result := mload(add(_message, add(MINT_RECIPIENT_INDEX, 32)))
+        }
+        
+        return result;
     }
 
     /**
@@ -111,8 +128,15 @@ library BurnMessage {
      * @param _message The message
      * @return amount
      */
-    function _getAmount(bytes29 _message) internal pure returns (uint256) {
-        return _message.indexUint(AMOUNT_INDEX, AMOUNT_LEN);
+    function _getAmount(bytes memory _message) internal pure returns (uint256) {
+        uint256 result;
+        
+        assembly {
+            // Load uint256 from memory starting at AMOUNT_INDEX + 32
+            result := mload(add(_message, add(AMOUNT_INDEX, 32)))
+        }
+        
+        return result;
     }
 
     /**
@@ -120,16 +144,24 @@ library BurnMessage {
      * @param _message The message
      * @return version
      */
-    function _getVersion(bytes29 _message) internal pure returns (uint32) {
-        return uint32(_message.indexUint(VERSION_INDEX, VERSION_LEN));
+    function _getVersion(bytes memory _message) internal pure returns (uint32) {
+        uint32 result;
+        
+        assembly {
+            // Load 4 bytes and convert to uint32
+            // We need to get the bytes at the right position and shift right to ignore extraneous bytes
+            let word := mload(add(_message, add(VERSION_INDEX, 32)))
+            result := shr(224, word) // Shift right by 224 bits (256 - 32)
+        }
+        
+        return result;
     }
 
     /**
-     * @notice Reverts if burn message is malformed or invalid length
-     * @param _message The burn message as bytes29
+     * @notice Validates if burn message is properly formatted
+     * @param _message The burn message as bytes
      */
-    function _validateBurnMessageFormat(bytes29 _message) internal pure {
-        require(_message.isValid(), "Malformed message");
-        require(_message.len() == BURN_MESSAGE_LEN, "Invalid message length");
+    function _validateBurnMessageFormat(bytes memory _message) internal pure {
+        require(_message.length == BURN_MESSAGE_LEN, "Invalid message length");
     }
 }
