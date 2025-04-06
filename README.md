@@ -24,7 +24,7 @@ The main contract that handles the creation of trading agents, stock token purch
 - Stock token purchasing with USDC
 - Stock selling request commitment and fulfillment
 - Price per token calculation based on USDC balance and token supply
-- Cross-chain token purchase integration with CCTP
+- Cross-chain token purchase integration with CCTP (not on production yet)
 
 #### AgentToken.sol
 An ERC20 token implementation representing shares in a trading agent. Features:
